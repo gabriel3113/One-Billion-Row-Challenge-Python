@@ -88,7 +88,7 @@ def main() -> None:
     station_names = build_station_names(CSV_FILE_PATH)
     print(f"{len(station_names)} estações carregadas.")
 
-    num_rows = 1_000_000_000_000   # exemplo mais realista
+    num_rows = 1_000_000_000  # exemplo mais realista
     print(estimate_file_size(station_names, num_rows))
 
     build_test_data(station_names, num_rows, TXT_FILE_PATH)

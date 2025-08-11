@@ -1,0 +1,61 @@
+---------------------------------------
+
+Python / Poetry project – .gitignore
+
+---------------------------------------
+
+=== Byte‑code & caches ===
+
+pycache/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.hypothesis/
+
+=== Virtual‑envs ===
+
+.venv/
+venv/
+env/
+
+=== Editors / IDEs ===
+
+.vscode/
+.idea/
+*.swp
+
+=== Build / dist artifacts ===
+
+build/
+dist/
+*.egg-info/
+
+=== Logs & coverage ===
+
+*.log
+.coverage
+
+=== OS / misc ===
+
+.DS_Store
+Thumbs.db
+
+=== Jupyter ===
+
+.ipynb_checkpoints/
+
+=== Data generated pelo script ===
+
+(mantém o CSV de input, ignora o TXT gigantesco de saída)
+
+data/weather_stations.txt
+
+=== Parquet e arquivos comprimidos (opcional) ===
+
+*.parquet
+*.gz
+*.zip
+
+--- Fim ---
