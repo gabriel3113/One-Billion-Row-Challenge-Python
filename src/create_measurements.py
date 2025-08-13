@@ -8,7 +8,7 @@ from typing import Iterable, List
 # --- Caminhos ---------------------------------------------------------------
 
 CSV_FILE_PATH = Path(r"C:\Users\Administrador\Documents\GitHub\estudos_4\data\weather_stations.csv")
-TXT_FILE_PATH = Path("data/weather_stations.txt")   # criaremos a pasta se não existir
+TXT_FILE_PATH = Path("data/stations.txt")   # criaremos a pasta se não existir
 TXT_FILE_PATH.parent.mkdir(parents=True, exist_ok=True)
 
 # --- Utilidades -------------------------------------------------------------
@@ -88,7 +88,7 @@ def main() -> None:
     station_names = build_station_names(CSV_FILE_PATH)
     print(f"{len(station_names)} estações carregadas.")
 
-    num_rows = 1_000_000_000  # exemplo mais realista
+    num_rows = 1_000# exemplo mais realista
     print(estimate_file_size(station_names, num_rows))
 
     build_test_data(station_names, num_rows, TXT_FILE_PATH)

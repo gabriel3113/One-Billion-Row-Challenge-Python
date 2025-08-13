@@ -1,49 +1,68 @@
-import polars as pl
+import os
 from pathlib import Path
+from typing import Sequence, Union
+from glob import glob
+import time
+import polars as pl
 
-DATA_PATH = Path("data/weather_stations.txt")      # saída do gerador
+# Garanta todos os cores (ideal setar antes de inicializar o plano)
+os.environ.setdefault("POLARS_MAX_THREADS", str(os.cpu_count()))
 
-def create_polars_df(path: Path = DATA_PATH) -> pl.DataFrame:
-    """
-    Lê o arquivo gigante `weather_stations.txt` e devolve
-    max/min/mean por estação, em modo streaming.
-    """
-    # 1) Ajustes globais – experimente valores diferentes no seu hardware
-    pl.Config.set_streaming_chunk_size(8_000_000)   # 8 Mi linhas por chunk
-    pl.Config.set_global_allocator("mimalloc")      # opcional (↑ alocação)
+def create_polars_df_ultra(
+    paths: Union[str, Path, Sequence[Union[str, Path]], None] = None,
+    sort_output: bool = False,
+) -> pl.DataFrame:
+    # chunks grandes reduzem overhead (ajuste se faltar RAM)
+    pl.Config.set_streaming_chunk_size(32_000_000)
 
-    # 2) Lazy scan em modo streaming
+    # Default: use shards "weather_stations-*.txt"; se não existir, use o arquivo único
+    if paths is None:
+        found = sorted(glob("data/weather_stations-*.txt"))
+        paths = found if found else "data/weather_stations.txt"
+
+    # scan_csv aceita string, Path único ou lista de strings/Paths
     scan = pl.scan_csv(
-        path,
+        paths,
         separator=";",
         has_header=False,
         new_columns=["station", "measure"],
-        dtypes={"station": pl.String, "measure": pl.Float64},
-        null_values=[],               # evita checagem de nulos
-        rechunk=False,                # só reenfileira no collect()
-        low_memory=True,              # buffers menores → menos pico de RAM
-        csv_buffer_size=32 * 1024,    # 32 KiB por sys-call (SSD NVMe = ok)
-        n_threads=0,                  # 0 = usar todos
-        infer_schema_length=0,        # não inferir – já informamos dtypes
+        schema_overrides={"station": pl.Utf8, "measure": pl.Float32},
+        infer_schema_length=0,
+        quote_char=None,     # parser 100% paralelo
+        encoding="utf8",
+        try_parse_dates=False,
     )
 
-    df = (
-        scan
-        .group_by("station", maintain_order=False)  # agrupamento hash
-        .agg(
-            pl.col("measure").max().alias("max"),
-            pl.col("measure").min().alias("min"),
-            pl.col("measure").mean().alias("mean"),
+    with pl.StringCache():
+        lf = (
+            scan
+            .with_columns([
+                pl.col("station").cast(pl.Categorical),
+                (pl.col("measure") * 10).round(0).cast(pl.Int16).alias("t10"),
+            ])
+            .select(["station", "t10"])  # solta 'measure' cedo
+            .group_by("station")
+            .agg([
+                pl.col("t10").min().alias("min_t10"),
+                pl.col("t10").max().alias("max_t10"),
+                pl.col("t10").sum().cast(pl.Int64).alias("sum_t10"),  # evita overflow
+                pl.len().cast(pl.Int64).alias("n"),
+            ])
+            .with_columns([
+                (pl.col("min_t10") / 10).alias("min"),
+                (pl.col("max_t10") / 10).alias("max"),
+                (pl.col("sum_t10") / pl.col("n") / 10).alias("mean"),
+            ])
+            .select(["station", "min", "max", "mean"])
         )
-        # remova esta linha se não precisar da saída ordenada
-        .sort("station")             
-        .collect(streaming=True)      # executa de fato, chunk → chunk
-    )
-    return df
+
+        if sort_output:
+            lf = lf.sort("station")  # deixe False para máximo throughput
+
+        return lf.collect(streaming=True)
 
 if __name__ == "__main__":
-    import time
     t0 = time.time()
-    df = create_polars_df()
-    print(df)
-    print(f"Polars took: {time.time() - t0:.2f} s")
+    df = create_polars_df_ultra(sort_output=False)
+    print(df.head())
+    print(f"Took: {time.time() - t0:.2f}s")
